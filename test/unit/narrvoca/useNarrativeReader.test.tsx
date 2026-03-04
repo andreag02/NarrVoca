@@ -8,8 +8,9 @@ import { useNarrativeReader } from '@/hooks/narrvoca/useNarrativeReader';
 // Mocks
 // ---------------------------------------------------------------------------
 const mockPush = jest.fn();
+const mockRouter = { push: mockPush };
 jest.mock('next/navigation', () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => mockRouter,
 }));
 
 jest.mock('@/lib/supabase', () => ({
@@ -76,6 +77,11 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 async function mountAndWait() {
   const { result } = renderHook(() => useNarrativeReader());
+  // Flush the async continuations of init() (setUid/setAccessToken/setStories
+  // after each mockResolvedValue resolves) while the act() boundary is active.
+  // waitFor intentionally disables IS_REACT_ACT_ENVIRONMENT between polls, so
+  // the flush must happen before waitFor starts, not inside it.
+  await act(async () => {});
   await waitFor(() => expect(result.current.isLoading).toBe(false));
   return result;
 }
@@ -103,6 +109,7 @@ describe('initialisation', () => {
   it('redirects to /login when there is no session', async () => {
     mockGetSession.mockResolvedValue({ data: { session: null } });
     renderHook(() => useNarrativeReader());
+    await act(async () => {});
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/login'));
   });
 

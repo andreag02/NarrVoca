@@ -79,7 +79,7 @@ export default function TermsPage() {
               5. Disclaimer of Warranties
             </h2>
             <p className="leading-relaxed">
-              NarrVoca is provided "as is" without warranties of any kind. Language grading is performed
+              NarrVoca is provided &ldquo;as is&rdquo; without warranties of any kind. Language grading is performed
               by an AI model and may not be perfectly accurate. We do not guarantee that the service will
               be uninterrupted or error-free.
             </p>
