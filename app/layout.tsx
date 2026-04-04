@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
+  metadataBase: new URL("https://narrvoca.vercel.app"),
   title: "NarrVoca",
   description: "Narrative-based language learning — master vocabulary through interactive stories.",
   icons: {
