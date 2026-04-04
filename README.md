@@ -4,9 +4,11 @@
 
 NarrVoca is a full-stack language-learning web application that extends the original Vocora platform with an adaptive **Narrative Reader** — branching, multilingual short stories that grade written responses in real time with GPT-4o-mini, track vocabulary mastery via spaced repetition, and automatically sync learned words into the user's Vocora word list.
 
-> **Course:** CSCI 6333 — Database Systems, University of Texas Rio Grande Valley, Spring 2026
-> **Team:** Ruben Aleman (@BUDDY26), Silvia Osuna (@mozzarellastix), Andrea Garza (@andreag02)
 > **Deployed:** [vocora.vercel.app](https://vocora.vercel.app)
+
+### How It Works
+
+A user reads a story node and submits a free-text response in the target language. The response is sent to the `grade-response` API, which fetches the node's prompt text from Supabase and calls GPT-4o-mini to evaluate grammatical accuracy, vocabulary use, and relevance — returning a 0–1 score and brief feedback. The interaction is immediately persisted to `interaction_log`, node progress is upserted to `user_node_progress`, and per-word mastery scores are written to `user_vocab_mastery` with a computed `next_review_at` date. On checkpoint nodes, a score of 0.7 or above triggers `sync-vocab`, which writes the node's target vocabulary into the user's Vocora `vocab_words` table — making those words available in the story generator and word list. All state is stored in Supabase PostgreSQL; every NarrVoca API route requires a valid Supabase JWT.
 
 ---
 
@@ -53,7 +55,7 @@ NarrVoca extends the original Vocora platform (Next.js + Supabase + AI) by intro
 | AI — Definitions / Audio | OpenAI (TTS, completions) |
 | AI — Writing / Chat | Google Generative AI (Gemini) |
 | AI — Images | Fireworks AI |
-| Testing | Jest (unit, 85 tests) + Cypress (E2E) |
+| Testing | Jest (unit, 112 tests) + Cypress (E2E) |
 | Deployment | Vercel |
 
 ---
@@ -126,7 +128,7 @@ NarrVoca/
 │   ├── 001_narrvoca_extension.sql     ← 11 new tables + 6 indexes
 │   ├── 002_seed_sample_story.sql      ← "En el Mercado" seed story
 │   └── ...rollback + verify SQL
-├── test/unit/narrvoca/                ← 85 Jest unit tests
+├── test/unit/narrvoca/                ← 112 Jest unit tests
 └── docs/                              ← ER diagram, schema, reports, API docs
 ```
 
@@ -138,8 +140,9 @@ NarrVoca/
 
 - Node.js 18+
 - A Supabase project with migrations applied
-- OpenAI API key
-- Google Generative AI (Gemini) API key
+- OpenAI API key (`OPENAI_API_KEY`)
+- Gemini API key (`GEMINI_API_KEY`)
+- Fireworks AI API key (`FIREWORKS_API_KEY`)
 
 ### Environment Variables
 
@@ -158,6 +161,7 @@ NEXT_PUBLIC_OAUTH_REDIRECT_URL=http://localhost:3000/success
 NEXT_PUBLIC_MERRIAM_API_KEY_COLLEGIATE=your-merriam-key
 NEXT_PUBLIC_MERRIAM_API_KEY_LEARNERS=your-merriam-key
 FIREWORKS_API_KEY=your-fireworks-key
+GEMINI_API_KEY=your-gemini-key
 ```
 
 ### Install and Run
@@ -186,18 +190,19 @@ supabase/migrations/002_seed_verify.sql          ← verify row counts
 npm test
 ```
 
-**8 suites · 85 tests · 85 passing**
+**9 suites · 112 tests · 112 passing**
 
 | Suite | Tests | Coverage |
 |---|---|---|
-| `branching.test.ts` | 12 | Pure branching logic + DB resolver |
-| `queries.test.ts` | 15 | All Supabase query helpers |
-| `api/grade-response.test.ts` | 8 | LLM grading route |
+| `branching.test.ts` | 10 | Pure branching logic + DB resolver |
+| `queries.test.ts` | 13 | All Supabase query helpers |
+| `api/grade-response.test.ts` | 9 | LLM grading route |
 | `api/log-interaction.test.ts` | 6 | Interaction log route |
 | `api/update-progress.test.ts` | 6 | Node progress route |
-| `api/update-mastery.test.ts` | 10 | SRS mastery route |
-| `api/sync-vocab.test.ts` | 8 | Vocab bridge route |
-| `useNarrativeReader.test.tsx` | 20 | Full hook integration |
+| `api/update-mastery.test.ts` | 9 | SRS mastery route |
+| `api/sync-vocab.test.ts` | 9 | Vocab bridge route |
+| `useNarrativeReader.test.tsx` | 39 | Full hook integration |
+| `phase6-ui.test.tsx` | 11 | UI rendering + interaction |
 
 ---
 
@@ -207,12 +212,24 @@ Full documentation at [`docs/api-reference.md`](docs/api-reference.md).
 
 ### NarrVoca Routes — all require `Authorization: Bearer <supabase-jwt>`
 
+**Grading & Interaction**
+
 | Route | Method | Body | Returns |
 |---|---|---|---|
 | `/api/narrvoca/grade-response` | POST | `{ node_id, user_input, target_language }` | `{ accuracy_score, feedback }` |
 | `/api/narrvoca/log-interaction` | POST | `{ uid, node_id, user_input, accuracy_score, llm_feedback? }` | `{ interaction_id }` |
+
+**Progress & Mastery**
+
+| Route | Method | Body | Returns |
+|---|---|---|---|
 | `/api/narrvoca/update-progress` | POST | `{ uid, node_id, status, accuracy_score? }` | progress row |
 | `/api/narrvoca/update-mastery` | POST | `{ uid, vocab_id, mastery_score }` | mastery row |
+
+**Vocabulary**
+
+| Route | Method | Body | Returns |
+|---|---|---|---|
 | `/api/narrvoca/sync-vocab` | POST | `{ uid, node_id, target_language }` | `{ added[], skipped[] }` |
 
 ---
@@ -241,16 +258,11 @@ Full documentation at [`docs/api-reference.md`](docs/api-reference.md).
 
 | File | Description |
 |---|---|
-| [`docs/progress-log.md`](docs/progress-log.md) | Full development session log |
 | [`docs/architecture.md`](docs/architecture.md) | System architecture overview |
 | [`docs/api-reference.md`](docs/api-reference.md) | Complete API route reference |
 | [`docs/NarrVoca_DB_Design_A.pdf`](docs/NarrVoca_DB_Design_A.pdf) | Database design document |
 | [`docs/NarrVoca_Figure1_ER_Diagram.png`](docs/NarrVoca_Figure1_ER_Diagram.png) | ER diagram |
 | [`docs/NarrVoca_Figure2_Schema_Diagram.png`](docs/NarrVoca_Figure2_Schema_Diagram.png) | Schema diagram |
-| [`docs/NarrVoca_PromptLog_PartA.pdf`](docs/NarrVoca_PromptLog_PartA.pdf) | AI prompt engineering log |
 
 ---
 
-## License
-
-Academic project — CSCI 6333, University of Texas Rio Grande Valley, Spring 2026.
