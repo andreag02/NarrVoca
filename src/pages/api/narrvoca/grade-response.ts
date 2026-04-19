@@ -1,38 +1,59 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
-import OpenAI from 'openai';
-import { supabase } from '@/lib/supabase';
+import type { NextApiRequest, NextApiResponse } from "next";
+import OpenAI from "openai";
+import { supabase } from "@/lib/supabase";
+import { supabaseForUser } from "./_supabaseForUser";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 async function getAuthUser(req: NextApiRequest) {
-  const token = req.headers.authorization?.replace('Bearer ', '');
+  const token = req.headers.authorization?.replace("Bearer ", "");
   if (!token) return null;
-  const { data: { user } } = await supabase.auth.getUser(token);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser(token);
   return user ?? null;
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+function getToken(req: NextApiRequest) {
+  return req.headers.authorization?.replace("Bearer ", "") ?? "";
+}
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
   const user = await getAuthUser(req);
   if (!user) {
-    return res.status(401).json({ error: 'Unauthorized' });
+    return res.status(401).json({ error: "Unauthorized" });
   }
 
   const { node_id, user_input, target_language } = req.body ?? {};
 
+  // Dev mock — set OPENAI_MOCK=true in .env.local to skip real API calls
+  if (process.env.OPENAI_MOCK === "true") {
+    return res.status(200).json({
+      accuracy_score: 0.85,
+      feedback: "[Mock] Good effort! Your response looks reasonable.",
+    });
+  }
+
   if (node_id == null || user_input == null || target_language == null) {
-    return res.status(400).json({ error: 'Missing required fields: node_id, user_input, target_language' });
+    return res.status(400).json({
+      error: "Missing required fields: node_id, user_input, target_language",
+    });
   }
 
   // Fetch the prompt text for this node to use as grading context
-  const { data: promptRows, error: dbError } = await supabase
-    .from('node_text')
-    .select('text_content')
-    .eq('node_id', node_id)
-    .eq('text_type', 'prompt')
+  const db = supabaseForUser(getToken(req));
+  const { data: promptRows, error: dbError } = await db
+    .from("node_text")
+    .select("text_content")
+    .eq("node_id", node_id)
+    .eq("text_type", "prompt")
     .limit(1);
 
   if (dbError) {
@@ -55,26 +76,52 @@ Respond with ONLY the JSON object, no other text.`;
 
   try {
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: "gpt-4o-mini",
       messages: [
-        { role: 'system', content: systemMessage },
-        { role: 'user', content: userMessage },
+        { role: "system", content: systemMessage },
+        { role: "user", content: userMessage },
       ],
-      response_format: { type: 'json_object' },
+      response_format: { type: "json_object" },
       temperature: 0.2,
     });
 
-    const raw = completion.choices[0].message.content ?? '{}';
-    const parsed = JSON.parse(raw) as { accuracy_score?: unknown; feedback?: unknown };
+    const raw = completion.choices[0].message.content ?? "{}";
+    const parsed = JSON.parse(raw) as {
+      accuracy_score?: unknown;
+      feedback?: unknown;
+    };
 
-    const accuracy_score = typeof parsed.accuracy_score === 'number'
-      ? Math.min(1, Math.max(0, parsed.accuracy_score))
-      : 0.5;
-    const feedback = typeof parsed.feedback === 'string' ? parsed.feedback : '';
+    const accuracy_score =
+      typeof parsed.accuracy_score === "number"
+        ? Math.min(1, Math.max(0, parsed.accuracy_score))
+        : 0.5;
+    const feedback = typeof parsed.feedback === "string" ? parsed.feedback : "";
 
     return res.status(200).json({ accuracy_score, feedback });
   } catch (err) {
-    console.error('grade-response: OpenAI error', err);
-    return res.status(500).json({ error: 'Failed to grade response' });
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("grade-response: OpenAI error", err);
+
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(500).json({
+        error: "Server configuration error: OPENAI_API_KEY is not set.",
+      });
+    }
+    if (
+      message.includes("401") ||
+      message.toLowerCase().includes("invalid api key") ||
+      message.toLowerCase().includes("incorrect api key")
+    ) {
+      return res.status(500).json({
+        error: "Grading failed: the OpenAI API key is invalid or expired.",
+      });
+    }
+    if (message.includes("429")) {
+      return res.status(500).json({
+        error:
+          "Grading failed: OpenAI rate limit reached. Please try again in a moment.",
+      });
+    }
+    return res.status(500).json({ error: `Grading failed: ${message}` });
   }
 }

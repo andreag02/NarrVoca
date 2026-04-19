@@ -1,5 +1,5 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '@/src/pages/api/narrvoca/sync-vocab';
+import type { NextApiRequest, NextApiResponse } from "next";
+import handler from "@/src/pages/api/narrvoca/sync-vocab";
 
 // ---------------------------------------------------------------------------
 // Supabase mock
@@ -26,15 +26,41 @@ const mockVWSelect = jest.fn();
 // vocab_words insert chain: .insert() → awaitable
 const mockVWInsert = jest.fn();
 
+// vocab_lists select chain: .select().eq().eq().eq().limit().single() → awaitable
+const mockVLSingle = jest.fn();
+const mockVLLimit = jest.fn();
+const mockVLEq3 = jest.fn();
+const mockVLEq2 = jest.fn();
+const mockVLEq1 = jest.fn();
+const mockVLSelect = jest.fn();
+
+// vocab_lists insert chain: .insert().select().single() → awaitable
+const mockVLInsertSingle = jest.fn();
+const mockVLInsertSelect = jest.fn();
+const mockVLInsert = jest.fn();
+
 // Track how many times vocab_words.from() is called so we can return
 // the select chain on call #1 and the insert chain on call #2.
 let vwCallCount = 0;
+// Track vocab_lists calls: #1 = select (check existing), #2 = insert (create new)
+let vlCallCount = 0;
 
-jest.mock('@/lib/supabase', () => ({
+const mockSUFU = jest.fn();
+
+jest.mock("@/src/pages/api/narrvoca/_supabaseForUser", () => ({
+  supabaseForUser: (...args: unknown[]) => mockSUFU(...args),
+}));
+
+jest.mock("@/lib/supabase", () => ({
   supabase: {
     from: (table: string) => {
-      if (table === 'node_vocabulary') return { select: mockNVSelect };
-      if (table === 'vocabulary') return { select: mockVocabSelect };
+      if (table === "node_vocabulary") return { select: mockNVSelect };
+      if (table === "vocabulary") return { select: mockVocabSelect };
+      if (table === "vocab_lists") {
+        vlCallCount += 1;
+        if (vlCallCount === 1) return { select: mockVLSelect };
+        return { insert: mockVLInsert };
+      }
       // vocab_words — alternates between select and insert
       vwCallCount += 1;
       if (vwCallCount === 1) return { select: mockVWSelect };
@@ -47,11 +73,15 @@ jest.mock('@/lib/supabase', () => ({
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-function makeReq(method: string, body?: object, withAuth = true): Partial<NextApiRequest> {
+function makeReq(
+  method: string,
+  body?: object,
+  withAuth = true,
+): Partial<NextApiRequest> {
   return {
     method,
     body,
-    headers: withAuth ? { authorization: 'Bearer test-token' } : {},
+    headers: withAuth ? { authorization: "Bearer test-token" } : {},
   };
 }
 
@@ -69,113 +99,157 @@ function setupHappyPath(
   existingWords: string[],
 ) {
   // node_vocabulary: .select().eq().eq() → { data: [{vocab_id}...], error:null }
-  mockNVEq2.mockResolvedValue({ data: vocabIds.map((v) => ({ vocab_id: v })), error: null });
+  mockNVEq2.mockResolvedValue({
+    data: vocabIds.map((v) => ({ vocab_id: v })),
+    error: null,
+  });
   mockNVEq1.mockReturnValue({ eq: mockNVEq2 });
   mockNVSelect.mockReturnValue({ eq: mockNVEq1 });
 
   // vocabulary: .select().in().eq() → { data: [{term}...], error:null }
-  mockVocabEq.mockResolvedValue({ data: terms.map((t) => ({ term: t })), error: null });
+  mockVocabEq.mockResolvedValue({
+    data: terms.map((t) => ({ term: t })),
+    error: null,
+  });
   mockVocabIn.mockReturnValue({ eq: mockVocabEq });
   mockVocabSelect.mockReturnValue({ in: mockVocabIn });
 
   // vocab_words SELECT: .select().eq().eq() → { data: [{word}...], error:null }
-  mockVWSelectEq2.mockResolvedValue({ data: existingWords.map((w) => ({ word: w })), error: null });
+  mockVWSelectEq2.mockResolvedValue({
+    data: existingWords.map((w) => ({ word: w })),
+    error: null,
+  });
   mockVWSelectEq1.mockReturnValue({ eq: mockVWSelectEq2 });
   mockVWSelect.mockReturnValue({ eq: mockVWSelectEq1 });
 
   // vocab_words INSERT: .insert([...]) → { error: null }
   mockVWInsert.mockResolvedValue({ error: null });
+
+  // vocab_lists SELECT (existing list found): .select().eq().eq().eq().limit().single()
+  mockVLSingle.mockResolvedValue({ data: { list_id: 99 }, error: null });
+  mockVLLimit.mockReturnValue({ single: mockVLSingle });
+  mockVLEq3.mockReturnValue({ limit: mockVLLimit });
+  mockVLEq2.mockReturnValue({ eq: mockVLEq3 });
+  mockVLEq1.mockReturnValue({ eq: mockVLEq2 });
+  mockVLSelect.mockReturnValue({ eq: mockVLEq1 });
 }
 
 beforeEach(() => {
   jest.clearAllMocks();
   vwCallCount = 0;
-  mockGetUser.mockResolvedValue({ data: { user: { id: 'test-uid' } } });
+  vlCallCount = 0;
+  mockGetUser.mockResolvedValue({ data: { user: { id: "test-uid" } } });
+  mockSUFU.mockImplementation(() => ({
+    from: (table: string) => {
+      if (table === "node_vocabulary") return { select: mockNVSelect };
+      if (table === "vocabulary") return { select: mockVocabSelect };
+      if (table === "vocab_lists") {
+        vlCallCount += 1;
+        if (vlCallCount === 1) return { select: mockVLSelect };
+        return { insert: mockVLInsert };
+      }
+      vwCallCount += 1;
+      if (vwCallCount === 1) return { select: mockVWSelect };
+      return { insert: mockVWInsert };
+    },
+  }));
 });
 
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
-describe('POST /api/narrvoca/sync-vocab', () => {
-  const validBody = { uid: 'user-uuid', node_id: 11, target_language: 'es' };
+describe("POST /api/narrvoca/sync-vocab", () => {
+  const validBody = { uid: "user-uuid", node_id: 11, target_language: "es" };
 
-  it('returns 405 for non-POST methods', async () => {
-    const req = makeReq('GET', undefined, false);
+  it("returns 405 for non-POST methods", async () => {
+    const req = makeReq("GET", undefined, false);
     const res = makeRes();
     await handler(req as NextApiRequest, res as NextApiResponse);
     expect(res.status).toHaveBeenCalledWith(405);
   });
 
-  it('returns 401 when no authorization token', async () => {
-    const req = makeReq('POST', validBody, false);
+  it("returns 401 when no authorization token", async () => {
+    const req = makeReq("POST", validBody, false);
     const res = makeRes();
     await handler(req as NextApiRequest, res as NextApiResponse);
     expect(res.status).toHaveBeenCalledWith(401);
   });
 
-  it('returns 400 when required fields are missing', async () => {
-    const req = makeReq('POST', { uid: 'user-uuid' });
+  it("returns 400 when required fields are missing", async () => {
+    const req = makeReq("POST", { uid: "user-uuid" });
     const res = makeRes();
     await handler(req as NextApiRequest, res as NextApiResponse);
     expect(res.status).toHaveBeenCalledWith(400);
   });
 
-  it('returns 200 with empty added/skipped when node has no target vocab', async () => {
+  it("returns 200 with empty added/skipped when node has no target vocab", async () => {
     setupHappyPath([], [], []);
-    const req = makeReq('POST', validBody);
+    const req = makeReq("POST", validBody);
     const res = makeRes();
     await handler(req as NextApiRequest, res as NextApiResponse);
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({ added: [], skipped: [] });
   });
 
-  it('adds new words that are not in the user vocab list', async () => {
-    setupHappyPath([5, 6], ['mercado', 'precio'], []);
-    const req = makeReq('POST', validBody);
-    const res = makeRes();
-    await handler(req as NextApiRequest, res as NextApiResponse);
-    expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith({ added: ['mercado', 'precio'], skipped: [] });
-  });
-
-  it('skips words already in the user vocab list', async () => {
-    setupHappyPath([5], ['mercado'], ['mercado']);
-    const req = makeReq('POST', validBody);
-    const res = makeRes();
-    await handler(req as NextApiRequest, res as NextApiResponse);
-    expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith({ added: [], skipped: ['mercado'] });
-  });
-
-  it('adds new words and skips existing words in the same call', async () => {
-    setupHappyPath([5, 6, 7], ['mercado', 'precio', 'dinero'], ['precio']);
-    const req = makeReq('POST', validBody);
+  it("adds new words that are not in the user vocab list", async () => {
+    setupHappyPath([5, 6], ["mercado", "precio"], []);
+    const req = makeReq("POST", validBody);
     const res = makeRes();
     await handler(req as NextApiRequest, res as NextApiResponse);
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({
-      added: expect.arrayContaining(['mercado', 'dinero']),
-      skipped: ['precio'],
+      added: ["mercado", "precio"],
+      skipped: [],
+    });
+  });
+
+  it("skips words already in the user vocab list", async () => {
+    setupHappyPath([5], ["mercado"], ["mercado"]);
+    const req = makeReq("POST", validBody);
+    const res = makeRes();
+    await handler(req as NextApiRequest, res as NextApiResponse);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({ added: [], skipped: ["mercado"] });
+  });
+
+  it("adds new words and skips existing words in the same call", async () => {
+    setupHappyPath([5, 6, 7], ["mercado", "precio", "dinero"], ["precio"]);
+    const req = makeReq("POST", validBody);
+    const res = makeRes();
+    await handler(req as NextApiRequest, res as NextApiResponse);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({
+      added: expect.arrayContaining(["mercado", "dinero"]),
+      skipped: ["precio"],
     });
     expect((res.json as jest.Mock).mock.calls[0][0].added).toHaveLength(2);
   });
 
-  it('returns 500 when node_vocabulary query fails', async () => {
-    mockNVEq2.mockResolvedValue({ data: null, error: { message: 'db error' } });
+  it("returns 500 when node_vocabulary query fails", async () => {
+    mockNVEq2.mockResolvedValue({ data: null, error: { message: "db error" } });
     mockNVEq1.mockReturnValue({ eq: mockNVEq2 });
     mockNVSelect.mockReturnValue({ eq: mockNVEq1 });
-    const req = makeReq('POST', validBody);
+    const req = makeReq("POST", validBody);
     const res = makeRes();
     await handler(req as NextApiRequest, res as NextApiResponse);
     expect(res.status).toHaveBeenCalledWith(500);
   });
 
-  it('returns 500 when vocab_words insert fails', async () => {
-    setupHappyPath([5], ['mercado'], []);
-    mockVWInsert.mockResolvedValue({ error: { message: 'insert error' } });
-    const req = makeReq('POST', validBody);
+  it("returns 500 when vocab_words insert fails", async () => {
+    setupHappyPath([5], ["mercado"], []);
+    mockVWInsert.mockResolvedValue({ error: { message: "insert error" } });
+    const req = makeReq("POST", validBody);
     const res = makeRes();
     await handler(req as NextApiRequest, res as NextApiResponse);
     expect(res.status).toHaveBeenCalledWith(500);
+  });
+
+  it("only syncs is_target=true vocab (filters non-target words)", async () => {
+    setupHappyPath([5], ["mercado"], []);
+    const req = makeReq("POST", validBody);
+    const res = makeRes();
+    await handler(req as NextApiRequest, res as NextApiResponse);
+    // The second .eq() call on node_vocabulary must be .eq("is_target", true)
+    expect(mockNVEq2).toHaveBeenCalledWith("is_target", true);
   });
 });

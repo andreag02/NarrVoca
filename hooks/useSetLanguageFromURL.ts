@@ -39,7 +39,7 @@ export function useSetLanguageFromURL() {
 
       // Extracts user's information.
       const user = session.user;
-      
+
       // Inserts user's preferences into Supabase table.
       const { error: insertError } = await supabase
         .from("user_preferences")
@@ -49,10 +49,13 @@ export function useSetLanguageFromURL() {
           preferred_lang: language,
         })
         .select();
-      
+
       // If row already exists, update it.
       if (insertError) {
-        if (insertError.code === "23505" || insertError.message.includes("duplicate key")) {
+        if (
+          insertError.code === "23505" ||
+          insertError.message.includes("duplicate key")
+        ) {
           console.warn("Insert failed: row exists. Updating instead.");
 
           const { error: updateError } = await supabase
@@ -63,7 +66,10 @@ export function useSetLanguageFromURL() {
             .eq("uid", user.id);
 
           if (updateError) {
-            console.error("User preferences update failed:", updateError.message);
+            console.error(
+              "User preferences update failed:",
+              updateError.message,
+            );
           } else {
           }
         } else {
@@ -77,4 +83,4 @@ export function useSetLanguageFromURL() {
   }, [languageReady]);
 
   return languageReady;
-};
+}

@@ -1,82 +1,88 @@
 "use client";
-import { useState} from "react";
+import { useState } from "react";
 import { useLanguage } from "@/lang/LanguageContext";
-import { Settings, Sparkles, Menu, X,} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,} from "@/components/ui/dropdown-menu"
-import Link from "next/link"
-import { LogOut, User } from "lucide-react"
-import { ThemeToggle } from "@/components/theme-toggle"
+import { Settings, Sparkles, Menu, X } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import Link from "next/link";
+import { LogOut, User } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 import dashBoardTranslations from "@/lang/Dashboard";
-import { VocoraMascot } from "@/components/vocora-mascot"
+import { VocoraMascot } from "@/components/vocora-mascot";
 
 export function Navbar() {
-    const { language } = useLanguage();
-    const translated = dashBoardTranslations[language];
-  
-    return (
-        <header className="sticky top-0 z-10 bg-gradient-to-r from-purple-600 to-violet-500 text-white">
-            <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <Link href="/" className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-                            <VocoraMascot width={24} height={24} />
-                        </div>
-                        <h1 className="text-2xl font-bold text-white">NarrVoca</h1>
-                    </Link>
-                </div>
+  const { language } = useLanguage();
+  const translated = dashBoardTranslations[language];
+  const router = useRouter();
 
-                {/* Desktop Navigation */}
-                <div className="hidden md:flex items-center gap-4">
-                    {/* <Link href="/dashboard/progress">
-                        <Badge
-                            variant="outline"
-                            className="flex gap-1 items-center px-3 py-1.5 border-white/30 bg-white/20 text-white hover:bg-white/30 transition-colors cursor-pointer"
-                        >
-                            <Sparkles className="h-3.5 w-3.5 text-white" />
-                            <span>{translated.navBar.progressDays}</span>
-                        </Badge>
-                    </Link> */}
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    router.push("/");
+  }
 
-                    {/* <Link href="/dashboard/account">
-                        <Avatar>
-                            <AvatarFallback className="bg-white/20 text-white">UV</AvatarFallback>
-                        </Avatar>
-                    </Link> */}
-
-                    <div className="border-l border-white/20 pl-4 ml-2">
-                        <ThemeToggle />
-                    </div>
-
-                    <div className="border-l border-white/20 pl-4 ml-2">
-                        <Link href="/" passHref>
-                            <Button variant="ghost" size="icon" className="rounded-full text-red-500 hover:bg-white/20" aria-label="Logout">
-                                <LogOut className="h-5 w-5" />
-                            </Button>
-                        </Link>
-                    </div>
-                </div>
-
-                {/* Mobile Menu Button - Replaced with direct Logout Button */}
-                <div className="flex md:hidden items-center gap-4">
-                    <div className="border-l border-white/20 pl-4">
-                        <ThemeToggle />
-                    </div>
-                    {/* Replaced hamburger menu with direct logout button for mobile */}
-                    <div className="pl-1">
-                        <Link href="/" passHref>
-                            <Button variant="ghost" size="icon" className="rounded-full text-red-500 hover:bg-white/20" aria-label="Logout">
-                                <LogOut className="h-6 w-6" /> {/* Adjusted icon size for mobile if necessary */}
-                            </Button>
-                        </Link>
-                    </div>
-                </div>
+  return (
+    <header className="sticky top-0 z-10 bg-gradient-to-r from-purple-600 to-violet-500 text-white">
+      <div className="container mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Link href="/dashboard" className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+              <VocoraMascot width={24} height={24} />
             </div>
+            <h1 className="text-2xl font-bold text-white">NarrVoca</h1>
+          </Link>
+        </div>
 
-            {/* Mobile Navigation - Removed as it's no longer needed with direct logout button */}
-            {/* 
+        {/* Desktop Navigation */}
+        <div className="hidden md:flex items-center gap-4">
+          <div className="border-l border-white/20 pl-4 ml-2">
+            <ThemeToggle />
+          </div>
+
+          <div className="border-l border-white/20 pl-4 ml-2">
+            <Button
+              onClick={handleLogout}
+              variant="ghost"
+              size="icon"
+              className="rounded-full text-red-500 hover:bg-white/20"
+              aria-label="Logout"
+            >
+              <LogOut className="h-5 w-5" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Mobile */}
+        <div className="flex md:hidden items-center gap-4">
+          <div className="border-l border-white/20 pl-4">
+            <ThemeToggle />
+          </div>
+          <div className="pl-1">
+            <Button
+              onClick={handleLogout}
+              variant="ghost"
+              size="icon"
+              className="rounded-full text-red-500 hover:bg-white/20"
+              aria-label="Logout"
+            >
+              <LogOut className="h-6 w-6" />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Navigation - Removed as it's no longer needed with direct logout button */}
+      {/* 
             {mobileMenuOpen && (
                 <div className="md:hidden bg-purple-700 py-3 px-4 flex flex-col gap-3">
                     
@@ -87,6 +93,6 @@ export function Navbar() {
                 </div>
             )}
             */}
-      </header>
-    );
+    </header>
+  );
 }

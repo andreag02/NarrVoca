@@ -1,11 +1,16 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
-import { getStories, getFullStory, getNodeVocab } from '@/lib/narrvoca/queries';
-import { resolveBranch } from '@/lib/narrvoca/branching';
-import type { Story, FullStory, StoryNode, NodeText } from '@/lib/narrvoca/types';
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import { getStories, getFullStory, getNodeVocab } from "@/lib/narrvoca/queries";
+import { resolveBranch } from "@/lib/narrvoca/branching";
+import type {
+  Story,
+  FullStory,
+  StoryNode,
+  NodeText,
+} from "@/lib/narrvoca/types";
 
 export type NarrativeNode = StoryNode & { texts: NodeText[] };
 
@@ -17,7 +22,7 @@ export function useNarrativeReader() {
   const [stories, setStories] = useState<Story[]>([]);
   const [fullStory, setFullStory] = useState<FullStory | null>(null);
   const [nodeIndex, setNodeIndex] = useState(0);
-  const [userInput, setUserInput] = useState('');
+  const [userInput, setUserInput] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -25,9 +30,11 @@ export function useNarrativeReader() {
 
   useEffect(() => {
     async function init() {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (!session) {
-        router.push('/login');
+        router.push("/login");
         return;
       }
       setUid(session.user.id);
@@ -36,7 +43,7 @@ export function useNarrativeReader() {
         const data = await getStories();
         setStories(data);
       } catch (e) {
-        console.error('useNarrativeReader: failed to load stories', e);
+        console.error("useNarrativeReader: failed to load stories", e);
       }
       setIsLoading(false);
     }
@@ -51,31 +58,40 @@ export function useNarrativeReader() {
     setIsLoading(true);
     setIsComplete(false);
     setNodeIndex(0);
-    setUserInput('');
+    setUserInput("");
     setFeedback(null);
     try {
       const full = await getFullStory(storyId);
       setFullStory(full);
     } catch (e) {
-      console.error('useNarrativeReader: failed to load story', e);
+      console.error("useNarrativeReader: failed to load story", e);
     }
     setIsLoading(false);
   }
 
-  function authHeaders(): Record<string, string> {
-    return accessToken
-      ? { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` }
-      : { 'Content-Type': 'application/json' };
+  async function freshAuthHeaders(): Promise<Record<string, string>> {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const token = session?.access_token ?? accessToken;
+    return token
+      ? { "Content-Type": "application/json", Authorization: `Bearer ${token}` }
+      : { "Content-Type": "application/json" };
   }
 
   async function handleContinue() {
     if (!fullStory || !currentNode || !uid) return;
     setFeedback(null);
 
-    await fetch('/api/narrvoca/update-progress', {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({ uid, node_id: currentNode.node_id, status: 'completed' }),
+    const headers = await freshAuthHeaders();
+    await fetch("/api/narrvoca/update-progress", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        uid,
+        node_id: currentNode.node_id,
+        status: "completed",
+      }),
     });
 
     const nextNodeId = await resolveBranch(currentNode.node_id);
@@ -91,35 +107,60 @@ export function useNarrativeReader() {
     let accuracy_score = 0.5;
     let llm_feedback: string | null = null;
 
-    const gradeRes = await fetch('/api/narrvoca/grade-response', {
-      method: 'POST',
-      headers: authHeaders(),
+    const headers = await freshAuthHeaders();
+    const gradeRes = await fetch("/api/narrvoca/grade-response", {
+      method: "POST",
+      headers,
       body: JSON.stringify({
         node_id: currentNode.node_id,
         user_input: userInput,
         target_language: fullStory.story.target_language,
       }),
     });
-    if (gradeRes.ok) {
-      const gradeData = await gradeRes.json() as { accuracy_score: number; feedback: string };
-      accuracy_score = gradeData.accuracy_score;
-      llm_feedback = gradeData.feedback ?? null;
+
+    if (!gradeRes.ok) {
+      const errData = (await gradeRes
+        .json()
+        .catch(() => ({}) as Record<string, unknown>)) as { error?: string };
+      setFeedback(
+        errData.error ?? "Grading is unavailable right now. Please try again.",
+      );
+      setIsSubmitting(false);
+      return;
     }
+
+    const gradeData = (await gradeRes.json()) as {
+      accuracy_score: number;
+      feedback: string;
+    };
+    accuracy_score = gradeData.accuracy_score;
+    llm_feedback = gradeData.feedback ?? null;
 
     setFeedback(llm_feedback);
 
     // Step 2: Log the interaction with the real score
-    await fetch('/api/narrvoca/log-interaction', {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({ uid, node_id: currentNode.node_id, user_input: userInput, llm_feedback, accuracy_score }),
+    await fetch("/api/narrvoca/log-interaction", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        uid,
+        node_id: currentNode.node_id,
+        user_input: userInput,
+        llm_feedback,
+        accuracy_score,
+      }),
     });
 
     // Step 3: Update node progress
-    await fetch('/api/narrvoca/update-progress', {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({ uid, node_id: currentNode.node_id, status: 'completed', accuracy_score }),
+    await fetch("/api/narrvoca/update-progress", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        uid,
+        node_id: currentNode.node_id,
+        status: "completed",
+        accuracy_score,
+      }),
     });
 
     // Step 4: Update vocab mastery for every word associated with this node
@@ -127,32 +168,40 @@ export function useNarrativeReader() {
       const vocabRows = await getNodeVocab(currentNode.node_id);
       await Promise.all(
         vocabRows.map((row) =>
-          fetch('/api/narrvoca/update-mastery', {
-            method: 'POST',
-            headers: authHeaders(),
-            body: JSON.stringify({ uid, vocab_id: row.vocab_id, mastery_score: accuracy_score }),
-          })
-        )
+          fetch("/api/narrvoca/update-mastery", {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              uid,
+              vocab_id: row.vocab_id,
+              mastery_score: accuracy_score,
+            }),
+          }),
+        ),
       );
     } catch (e) {
-      console.error('useNarrativeReader: failed to update vocab mastery', e);
+      console.error("useNarrativeReader: failed to update vocab mastery", e);
     }
 
     // Step 5: Sync target vocab words into the user's Vocora word list so they
     // appear in the story-generator word picker and dashboard word list.
     try {
-      await fetch('/api/narrvoca/sync-vocab', {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ uid, node_id: currentNode.node_id, target_language: fullStory.story.target_language }),
+      await fetch("/api/narrvoca/sync-vocab", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          uid,
+          node_id: currentNode.node_id,
+          target_language: fullStory.story.target_language,
+        }),
       });
     } catch (e) {
-      console.error('useNarrativeReader: failed to sync vocab to word list', e);
+      console.error("useNarrativeReader: failed to sync vocab to word list", e);
     }
 
     const nextNodeId = await resolveBranch(currentNode.node_id, accuracy_score);
     advanceToNode(fullStory, nextNodeId);
-    setUserInput('');
+    setUserInput("");
     setIsSubmitting(false);
   }
 
@@ -172,7 +221,7 @@ export function useNarrativeReader() {
   function resetStory() {
     setFullStory(null);
     setNodeIndex(0);
-    setUserInput('');
+    setUserInput("");
     setFeedback(null);
     setIsComplete(false);
   }

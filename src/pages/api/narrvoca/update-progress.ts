@@ -1,27 +1,39 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { supabase } from '@/lib/supabase';
+import type { NextApiRequest, NextApiResponse } from "next";
+import { supabase } from "@/lib/supabase";
+import { supabaseForUser } from "./_supabaseForUser";
 
 async function getAuthUser(req: NextApiRequest) {
-  const token = req.headers.authorization?.replace('Bearer ', '');
+  const token = req.headers.authorization?.replace("Bearer ", "");
   if (!token) return null;
-  const { data: { user } } = await supabase.auth.getUser(token);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser(token);
   return user ?? null;
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+function getToken(req: NextApiRequest) {
+  return req.headers.authorization?.replace("Bearer ", "") ?? "";
+}
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
   const user = await getAuthUser(req);
   if (!user) {
-    return res.status(401).json({ error: 'Unauthorized' });
+    return res.status(401).json({ error: "Unauthorized" });
   }
 
   const { uid, node_id, status, accuracy_score } = req.body ?? {};
 
   if (uid == null || node_id == null || status == null) {
-    return res.status(400).json({ error: 'Missing required fields: uid, node_id, status' });
+    return res
+      .status(400)
+      .json({ error: "Missing required fields: uid, node_id, status" });
   }
 
   // Build upsert payload.
@@ -33,21 +45,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     uid,
     node_id,
     status,
-    updated_at: now,
   };
 
   if (accuracy_score != null) {
     payload.best_score = accuracy_score;
   }
 
-  if (status === 'completed') {
+  if (status === "completed") {
     payload.completed_at = now;
   }
 
-  const { data, error } = await supabase
-    .from('user_node_progress')
-    .upsert(payload, { onConflict: 'uid,node_id', ignoreDuplicates: false })
-    .select('uid, node_id, status, best_score, completed_at')
+  const db = supabaseForUser(getToken(req));
+  const { data, error } = await db
+    .from("user_node_progress")
+    .upsert(payload, { onConflict: "uid,node_id", ignoreDuplicates: false })
+    .select("uid, node_id, status, best_score, completed_at")
     .single();
 
   if (error) {

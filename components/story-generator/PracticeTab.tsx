@@ -2,22 +2,29 @@ import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
 import { splitIntoWords, cleanWord } from "@/lib/utils";
+import { useHoverWord } from "@/hooks/story-generator/useHoverDefinitions";
+import { useLanguage } from "@/lang/LanguageContext";
 
 interface PracticeTabProps {
   onClose: () => void;
 }
 
 export const PracticeTab: React.FC<PracticeTabProps> = ({ onClose }) => {
+  const { language } = useLanguage();
+  const userLang = language as "en" | "es" | "zh";
+
   const [words, setWords] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [story, setStory] = useState("");
-  const [hoveredWord, setHoveredWord] = useState<{ word: string; index: number } | null>(null);
-  const [definitions, setDefinitions] = useState<{ [key: string]: { definition: string; partOfSpeech: string } }>({});
+  const [practiceLang, setPracticeLang] = useState("");
 
+  const { hoveredWord, setHoveredWord, definitions, handleAddHoveredWord } =
+    useHoverWord(practiceLang, words, setWords, story, userLang);
 
   useEffect(() => {
     const fetchWords = async () => {
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      const { data: sessionData, error: sessionError } =
+        await supabase.auth.getSession();
       const session = sessionData.session;
 
       if (sessionError || !session) {
@@ -28,24 +35,28 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({ onClose }) => {
       const userId = session.user.id;
 
       const { data: preferenceData, error: prefError } = await supabase
-      .from("user_preferences")
-      .select("practice_lang")
-      .eq("uid", userId)
-      .single();
+        .from("user_preferences")
+        .select("practice_lang")
+        .eq("uid", userId)
+        .single();
 
       if (prefError || !preferenceData?.practice_lang) {
-        console.error("Failed to fetch preferred language:", prefError?.message);
+        console.error(
+          "Failed to fetch preferred language:",
+          prefError?.message,
+        );
         return;
       }
 
-      const practiceLang = preferenceData.practice_lang;
+      const practiceLangValue = preferenceData.practice_lang;
+      setPracticeLang(practiceLangValue);
 
       // Fetch words by user + language
       const { data, error } = await supabase
         .from("vocab_words")
         .select("word")
         .eq("uid", userId)
-        .eq("language", practiceLang);
+        .eq("language", practiceLangValue);
 
       if (error) {
         console.error("Error fetching words:", error.message);
@@ -82,50 +93,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({ onClose }) => {
       setLoading(false);
     }
   };
-
-  const handleAddHoveredWord = async () => {
-    if (!hoveredWord?.word || words.includes(hoveredWord.word)) return;
-
-    const { error } = await supabase.from("vocab_words").insert([{ word: hoveredWord.word }]);
-    if (error) {
-      console.error("Error adding hovered word:", error);
-    } else {
-      setWords([...words, hoveredWord.word]);
-    }
-  };
-
-  useEffect(() => {
-    if (!hoveredWord || definitions[hoveredWord.word]) return;
-
-    const fetchDefinition = async () => {
-      try {
-        const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${hoveredWord.word}`);
-        const data = await response.json();
-        if (Array.isArray(data) && data.length > 0) {
-          setDefinitions((prev) => ({
-            ...prev,
-            [hoveredWord.word]: {
-              definition: data[0].meanings[0].definitions[0].definition,
-              partOfSpeech: data[0].meanings[0].partOfSpeech,
-            },
-          }));
-        } else {
-          setDefinitions((prev) => ({
-            ...prev,
-            [hoveredWord.word]: { definition: "Definition not found.", partOfSpeech: "unknown" },
-          }));
-        }
-      } catch (error) {
-        console.error("Error fetching definition:", error);
-        setDefinitions((prev) => ({
-          ...prev,
-          [hoveredWord.word]: { definition: "Error fetching definition.", partOfSpeech: "unknown" },
-        }));
-      }
-    };
-
-    fetchDefinition();
-  }, [hoveredWord]);
 
   return (
     <div
@@ -175,19 +142,33 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({ onClose }) => {
                   className={`relative inline-block cursor-pointer hover:underline ${
                     words.includes(cleanedWord) ? "bg-yellow-300" : ""
                   }`}
-                  onMouseEnter={() => setHoveredWord({ word: cleanedWord, index })}
+                  onMouseEnter={() =>
+                    setHoveredWord({ word: cleanedWord, index })
+                  }
                   onMouseLeave={() => setHoveredWord(null)}
                 >
                   {word}
-                  {hoveredWord && hoveredWord.word === cleanedWord && hoveredWord.index === index && definitions[cleanedWord] && (
-                    <div className="absolute left-1/2 transform -translate-x-1/2 bottom-full mb-2 w-48 bg-gray-100 border border-gray-300 shadow-lg rounded-lg p-3 text-sm overflow-visible">
-                      <p className="font-bold text-black">{cleanedWord}</p>
-                      <p className="text-gray-500 italic">{definitions[cleanedWord]?.partOfSpeech || "noun"}</p>
-                      <p className="text-gray-700">{definitions[cleanedWord]?.definition || "No definition found."}</p>
-
-                      <div className="absolute left-1/2 transform -translate-x-1/2 top-full w-4 h-4 bg-gray-100 rotate-45 border border-gray-300"></div>
-                    </div>
-                  )}
+                  {hoveredWord &&
+                    hoveredWord.word === cleanedWord &&
+                    hoveredWord.index === index &&
+                    definitions[cleanedWord] && (
+                      <div className="absolute left-1/2 transform -translate-x-1/2 bottom-full mb-2 w-48 bg-gray-100 border border-gray-300 shadow-lg rounded-lg p-3 text-sm overflow-visible">
+                        <p className="font-bold text-black">{cleanedWord}</p>
+                        {definitions[cleanedWord]?.translatedWord && (
+                          <p className="text-purple-600 font-medium">
+                            {definitions[cleanedWord].translatedWord}
+                          </p>
+                        )}
+                        <p className="text-gray-500 italic">
+                          {definitions[cleanedWord]?.partOfSpeech || "noun"}
+                        </p>
+                        <p className="text-gray-700">
+                          {definitions[cleanedWord]?.definition ||
+                            "No definition found."}
+                        </p>
+                        <div className="absolute left-1/2 transform -translate-x-1/2 top-full w-4 h-4 bg-gray-100 rotate-45 border border-gray-300"></div>
+                      </div>
+                    )}
                 </span>
               ) : (
                 word
