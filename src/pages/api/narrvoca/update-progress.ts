@@ -37,8 +37,11 @@ export default async function handler(
   }
 
   // Build upsert payload.
-  // best_score and completed_at use DB-side logic via ignoreDuplicates=false:
-  // we pass the new values and let the DB column default handle "set once" semantics.
+  // completed_at follows normal upsert behavior (set whenever status === "completed").
+  // best_score is handled in application logic: fetch the current value first
+  // and only write when the new score is higher, or when no best_score exists yet.
+  // Note: read-then-write is non-atomic; concurrent submissions could race.
+  //   Acceptable for current single-user flow; tracked for v1.1 hardening to GREATEST() upsert.
   // The onConflict columns are (uid, node_id).
   const now = new Date().toISOString();
   const db = supabaseForUser(getToken(req));
