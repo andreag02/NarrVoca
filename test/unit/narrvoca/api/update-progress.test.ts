@@ -64,7 +64,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockGetUser.mockResolvedValue({ data: { user: { id: "test-uid" } } });
 
-  // Default pre-check: no existing row → currentBest = 0
+  // Default pre-check: no existing row → currentBest is null/absent
   mockPreCheckMaybeSingle.mockResolvedValue({ data: null, error: null });
   mockPreCheckEq2.mockReturnValue({ maybeSingle: mockPreCheckMaybeSingle });
   mockPreCheckEq1.mockReturnValue({ eq: mockPreCheckEq2 });
