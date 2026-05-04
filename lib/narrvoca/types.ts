@@ -5,8 +5,8 @@
 export interface Story {
   story_id: number;
   title: string;
-  target_language: 'es' | 'zh';
-  difficulty_level: 'beginner' | 'intermediate' | 'advanced' | null;
+  target_language: "es" | "zh";
+  difficulty_level: "beginner" | "intermediate" | "advanced" | null;
   genre: string | null;
   created_at: string;
 }
@@ -24,15 +24,14 @@ export interface NodeText {
   node_id: number;
   language_code: string;
   speaker: string | null;
-  text_type: 'narration' | 'dialogue' | 'prompt';
+  text_type: "narration" | "dialogue" | "prompt";
   text_content: string;
-  display_order: number;
 }
 
 export interface BranchingLogic {
   branch_id: number;
   node_id: number;
-  condition_type: 'default' | 'score_threshold';
+  condition_type: "default" | "score_threshold";
   condition_value: string | null;
   next_node_id: number;
 }
@@ -68,10 +67,9 @@ export interface NodeGrammar {
 export interface UserNodeProgress {
   uid: string;
   node_id: number;
-  status: 'not_started' | 'in_progress' | 'completed';
+  status: "not_started" | "in_progress" | "completed";
   best_score: number | null;
   completed_at: string | null;
-  updated_at: string;
 }
 
 export interface UserVocabMastery {
@@ -79,7 +77,6 @@ export interface UserVocabMastery {
   vocab_id: number;
   mastery_score: number;
   next_review_at: string;
-  updated_at: string;
 }
 
 export interface InteractionLog {
