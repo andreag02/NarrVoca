@@ -37,10 +37,15 @@ export default async function handler(
   }
 
   // Build upsert payload.
-  // best_score and completed_at use DB-side logic via ignoreDuplicates=false:
-  // we pass the new values and let the DB column default handle "set once" semantics.
+  // completed_at follows normal upsert behavior (set whenever status === "completed").
+  // best_score is handled in application logic: fetch the current value first
+  // and only write when the new score is higher, or when no best_score exists yet.
+  // Note: read-then-write is non-atomic; concurrent submissions could race.
+  //   Acceptable for current single-user flow; tracked for v1.1 hardening to GREATEST() upsert.
   // The onConflict columns are (uid, node_id).
   const now = new Date().toISOString();
+  const db = supabaseForUser(getToken(req));
+
   const payload: Record<string, unknown> = {
     uid,
     node_id,
@@ -48,14 +53,28 @@ export default async function handler(
   };
 
   if (accuracy_score != null) {
-    payload.best_score = accuracy_score;
+    // Preserve the historical maximum — only update best_score if the new
+    // attempt beats what is already stored.
+    const { data: existingProgress, error: existingProgressError } = await db
+      .from("user_node_progress")
+      .select("best_score")
+      .eq("uid", uid)
+      .eq("node_id", node_id)
+      .maybeSingle();
+
+    if (existingProgressError) {
+      return res.status(500).json({ error: existingProgressError.message });
+    }
+
+    const currentBest = existingProgress?.best_score;
+    if (currentBest == null || accuracy_score > currentBest) {
+      payload.best_score = accuracy_score;
+    }
   }
 
   if (status === "completed") {
     payload.completed_at = now;
   }
-
-  const db = supabaseForUser(getToken(req));
   const { data, error } = await db
     .from("user_node_progress")
     .upsert(payload, { onConflict: "uid,node_id", ignoreDuplicates: false })
