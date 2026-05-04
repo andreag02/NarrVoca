@@ -52,12 +52,17 @@ export default async function handler(
   if (accuracy_score != null) {
     // Preserve the historical maximum — only update best_score if the new
     // attempt beats what is already stored.
-    const { data: existingProgress } = await db
+    const { data: existingProgress, error: existingProgressError } = await db
       .from("user_node_progress")
       .select("best_score")
       .eq("uid", uid)
       .eq("node_id", node_id)
       .maybeSingle();
+
+    if (existingProgressError) {
+      return res.status(500).json({ error: existingProgressError.message });
+    }
+
     const currentBest: number = existingProgress?.best_score ?? 0;
     if (accuracy_score > currentBest) {
       payload.best_score = accuracy_score;
