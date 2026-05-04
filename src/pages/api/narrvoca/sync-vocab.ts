@@ -78,20 +78,7 @@ export default async function handler(
     return res.status(200).json({ added: [], skipped: [] });
   }
 
-  // 3. Fetch the user's existing vocab words for this language
-  const { data: existingRows, error: ewError } = await db
-    .from("vocab_words")
-    .select("word")
-    .eq("uid", uid)
-    .eq("language", target_language);
-
-  if (ewError) return res.status(500).json({ error: ewError.message });
-
-  const existing = new Set(
-    (existingRows ?? []).map((r: { word: string }) => r.word),
-  );
-
-  // 4. Resolve the NarrVoca list for this user+language (create if missing)
+  // 3. Resolve the NarrVoca list for this user+language (create if missing)
   const NARRVOCA_LIST_NAME = "NarrVoca";
   let listId: number;
   {
@@ -124,21 +111,34 @@ export default async function handler(
     }
   }
 
+  // 4. Fetch the user's existing vocab words scoped to the NarrVoca list
+  // (words in other lists must not block insertion here)
+  const { data: existingRows, error: ewError } = await db
+    .from("vocab_words")
+    .select("word")
+    .eq("uid", uid)
+    .eq("language", target_language)
+    .eq("list_id", listId);
+
+  if (ewError) return res.status(500).json({ error: ewError.message });
+
+  const existing = new Set(
+    (existingRows ?? []).map((r: { word: string }) => r.word),
+  );
+
   // 5. Insert only the words that are not already in the list
   const toAdd = terms.filter((t) => !existing.has(t));
   const skipped = terms.filter((t) => existing.has(t));
 
   if (toAdd.length > 0) {
-    const { error: insertError } = await db
-      .from("vocab_words")
-      .insert(
-        toAdd.map((word) => ({
-          word,
-          language: target_language,
-          uid,
-          list_id: listId,
-        })),
-      );
+    const { error: insertError } = await db.from("vocab_words").insert(
+      toAdd.map((word) => ({
+        word,
+        language: target_language,
+        uid,
+        list_id: listId,
+      })),
+    );
 
     if (insertError)
       return res.status(500).json({ error: insertError.message });

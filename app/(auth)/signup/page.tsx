@@ -194,7 +194,7 @@ export default function SignUpPage() {
     setError(null);
 
     const googleLanguage = language === "es" ? "es-419" : language;
-    const redirectURL = `${process.env.NEXT_PUBLIC_NEXTAUTH_URL}/dashboard?lang=${language}`;
+    const redirectURL = `${process.env.NEXT_PUBLIC_NEXTAUTH_URL}/auth/callback?next=${encodeURIComponent(`/dashboard?lang=${language}`)}`;
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",

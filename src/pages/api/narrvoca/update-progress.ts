@@ -41,6 +41,8 @@ export default async function handler(
   // we pass the new values and let the DB column default handle "set once" semantics.
   // The onConflict columns are (uid, node_id).
   const now = new Date().toISOString();
+  const db = supabaseForUser(getToken(req));
+
   const payload: Record<string, unknown> = {
     uid,
     node_id,
@@ -48,14 +50,23 @@ export default async function handler(
   };
 
   if (accuracy_score != null) {
-    payload.best_score = accuracy_score;
+    // Preserve the historical maximum — only update best_score if the new
+    // attempt beats what is already stored.
+    const { data: existingProgress } = await db
+      .from("user_node_progress")
+      .select("best_score")
+      .eq("uid", uid)
+      .eq("node_id", node_id)
+      .maybeSingle();
+    const currentBest: number = existingProgress?.best_score ?? 0;
+    if (accuracy_score > currentBest) {
+      payload.best_score = accuracy_score;
+    }
   }
 
   if (status === "completed") {
     payload.completed_at = now;
   }
-
-  const db = supabaseForUser(getToken(req));
   const { data, error } = await db
     .from("user_node_progress")
     .upsert(payload, { onConflict: "uid,node_id", ignoreDuplicates: false })

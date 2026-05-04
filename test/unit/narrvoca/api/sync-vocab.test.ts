@@ -18,7 +18,8 @@ const mockVocabEq = jest.fn();
 const mockVocabIn = jest.fn();
 const mockVocabSelect = jest.fn();
 
-// vocab_words select chain: .select().eq().eq() → awaitable
+// vocab_words select chain: .select().eq().eq().eq() → awaitable
+const mockVWSelectEq3 = jest.fn();
 const mockVWSelectEq2 = jest.fn();
 const mockVWSelectEq1 = jest.fn();
 const mockVWSelect = jest.fn();
@@ -114,11 +115,12 @@ function setupHappyPath(
   mockVocabIn.mockReturnValue({ eq: mockVocabEq });
   mockVocabSelect.mockReturnValue({ in: mockVocabIn });
 
-  // vocab_words SELECT: .select().eq().eq() → { data: [{word}...], error:null }
-  mockVWSelectEq2.mockResolvedValue({
+  // vocab_words SELECT: .select().eq().eq().eq() → { data: [{word}...], error:null }
+  mockVWSelectEq3.mockResolvedValue({
     data: existingWords.map((w) => ({ word: w })),
     error: null,
   });
+  mockVWSelectEq2.mockReturnValue({ eq: mockVWSelectEq3 });
   mockVWSelectEq1.mockReturnValue({ eq: mockVWSelectEq2 });
   mockVWSelect.mockReturnValue({ eq: mockVWSelectEq1 });
 
