@@ -12,7 +12,6 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  CardFooter,
 } from "@/components/ui/card";
 import { Icons } from "@/components/ui/icons";
 import { Navbar } from "@/components/Navbar";
