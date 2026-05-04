@@ -63,8 +63,8 @@ export default async function handler(
       return res.status(500).json({ error: existingProgressError.message });
     }
 
-    const currentBest: number = existingProgress?.best_score ?? 0;
-    if (accuracy_score > currentBest) {
+    const currentBest = existingProgress?.best_score;
+    if (currentBest == null || accuracy_score > currentBest) {
       payload.best_score = accuracy_score;
     }
   }
