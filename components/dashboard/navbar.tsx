@@ -18,11 +18,18 @@ import {
 import Link from "next/link";
 import { LogOut, User } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import dashBoardTranslations from "@/lang/Dashboard";
 import { VocoraMascot } from "@/components/vocora-mascot";
 
 export function Navbar() {
-  const { language } = useLanguage();
+  const { language, setLanguage } = useLanguage();
   const translated = dashBoardTranslations[language];
   const router = useRouter();
 
@@ -45,6 +52,23 @@ export function Navbar() {
 
         {/* Desktop Navigation */}
         <div className="hidden md:flex items-center gap-4">
+          <Select
+            value={language}
+            onValueChange={(val) => {
+              if (val === "en" || val === "es" || val === "zh") {
+                setLanguage(val);
+              }
+            }}
+          >
+            <SelectTrigger className="w-[110px] bg-white/20 border-white/30 text-white">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="en">English</SelectItem>
+              <SelectItem value="es">Español</SelectItem>
+              <SelectItem value="zh">中文</SelectItem>
+            </SelectContent>
+          </Select>
           <div className="border-l border-white/20 pl-4 ml-2">
             <ThemeToggle />
           </div>
@@ -64,6 +88,23 @@ export function Navbar() {
 
         {/* Mobile */}
         <div className="flex md:hidden items-center gap-4">
+          <Select
+            value={language}
+            onValueChange={(val) => {
+              if (val === "en" || val === "es" || val === "zh") {
+                setLanguage(val);
+              }
+            }}
+          >
+            <SelectTrigger className="w-[90px] bg-white/20 border-white/30 text-white">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="en">EN</SelectItem>
+              <SelectItem value="es">ES</SelectItem>
+              <SelectItem value="zh">中文</SelectItem>
+            </SelectContent>
+          </Select>
           <div className="border-l border-white/20 pl-4">
             <ThemeToggle />
           </div>
