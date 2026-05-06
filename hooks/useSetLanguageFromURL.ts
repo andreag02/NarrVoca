@@ -10,13 +10,18 @@ export function useSetLanguageFromURL() {
   const [languageReady, setLanguageReady] = useState(false);
 
   // If language is in URL, update the language context.
+  // If no lang param, mark as ready immediately using the localStorage value.
   useEffect(() => {
-    if (langFromURL && ["en", "es", "zh"].includes(langFromURL)) {
+    if (!langFromURL) {
+      setLanguageReady(true);
+      return;
+    }
+    if (["en", "es", "zh"].includes(langFromURL)) {
       setLanguage(langFromURL as "en" | "es" | "zh");
     }
   }, [langFromURL, setLanguage]);
 
-  // Markes language as "ready" once language matches URL.
+  // Marks language as "ready" once language matches URL param.
   useEffect(() => {
     if (langFromURL && language === langFromURL) {
       setLanguageReady(true);

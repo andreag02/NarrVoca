@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { Navbar } from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { useLanguage } from "@/lang/LanguageContext";
+import contactTranslations from "@/lang/contact";
 
 // ── Formspree setup ──────────────────────────────────────────────────────────
 // 1. Go to https://formspree.io and sign up with ruben.aleman@gmail.com
@@ -20,6 +22,8 @@ export default function ContactPage() {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState<Status>("idle");
+  const { language } = useLanguage();
+  const t = contactTranslations[language];
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -27,7 +31,10 @@ export default function ContactPage() {
     try {
       const res = await fetch(FORMSPREE_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
         body: JSON.stringify({ name, email, message }),
       });
       if (res.ok) {
@@ -52,17 +59,15 @@ export default function ContactPage() {
           href="/"
           className="inline-flex items-center gap-1 text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-200 mb-8 text-sm font-medium transition-colors"
         >
-          ← Back to Home
+          {t.backToHome}
         </Link>
 
         <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-purple-600 to-violet-500 bg-clip-text text-transparent mb-8">
-          Contact Us
+          {t.heading}
         </h1>
 
         <div className="space-y-8 text-slate-700 dark:text-slate-300">
-          <p className="text-lg leading-relaxed">
-            Have a question, found a bug, or want to share feedback? We&apos;d love to hear from you.
-          </p>
+          <p className="text-lg leading-relaxed">{t.intro}</p>
 
           {/* Team GitHub cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -72,8 +77,12 @@ export default function ContactPage() {
               rel="noopener noreferrer"
               className="flex flex-col gap-1 bg-white dark:bg-slate-800 rounded-xl p-5 border border-purple-100 dark:border-purple-800 hover:border-purple-400 dark:hover:border-purple-600 transition-colors"
             >
-              <span className="font-semibold text-slate-800 dark:text-slate-100">Ruben Aleman</span>
-              <span className="text-sm text-purple-500">@BUDDY26 on GitHub</span>
+              <span className="font-semibold text-slate-800 dark:text-slate-100">
+                Ruben Aleman
+              </span>
+              <span className="text-sm text-purple-500">
+                @BUDDY26 on GitHub
+              </span>
             </a>
 
             <a
@@ -82,8 +91,12 @@ export default function ContactPage() {
               rel="noopener noreferrer"
               className="flex flex-col gap-1 bg-white dark:bg-slate-800 rounded-xl p-5 border border-purple-100 dark:border-purple-800 hover:border-purple-400 dark:hover:border-purple-600 transition-colors"
             >
-              <span className="font-semibold text-slate-800 dark:text-slate-100">Silvia Osuna</span>
-              <span className="text-sm text-purple-500">@mozzarellastix on GitHub</span>
+              <span className="font-semibold text-slate-800 dark:text-slate-100">
+                Silvia Osuna
+              </span>
+              <span className="text-sm text-purple-500">
+                @mozzarellastix on GitHub
+              </span>
             </a>
 
             <a
@@ -92,28 +105,34 @@ export default function ContactPage() {
               rel="noopener noreferrer"
               className="flex flex-col gap-1 bg-white dark:bg-slate-800 rounded-xl p-5 border border-purple-100 dark:border-purple-800 hover:border-purple-400 dark:hover:border-purple-600 transition-colors"
             >
-              <span className="font-semibold text-slate-800 dark:text-slate-100">Andrea Garza</span>
-              <span className="text-sm text-purple-500">@andreag02 on GitHub</span>
+              <span className="font-semibold text-slate-800 dark:text-slate-100">
+                Andrea Garza
+              </span>
+              <span className="text-sm text-purple-500">
+                @andreag02 on GitHub
+              </span>
             </a>
           </div>
 
           {/* Contact form */}
           <section>
             <h2 className="text-xl font-semibold text-purple-700 dark:text-purple-300 mb-4">
-              Send Us a Message
+              {t.sendMessage}
             </h2>
 
             {status === "success" ? (
               <div className="rounded-xl bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 p-6 text-center">
-                <p className="text-green-700 dark:text-green-300 font-semibold text-lg mb-1">Message sent!</p>
+                <p className="text-green-700 dark:text-green-300 font-semibold text-lg mb-1">
+                  {t.success.title}
+                </p>
                 <p className="text-green-600 dark:text-green-400 text-sm">
-                  Thanks for reaching out — we&apos;ll get back to you soon.
+                  {t.success.body}
                 </p>
                 <button
                   onClick={() => setStatus("idle")}
                   className="mt-4 text-sm text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-200 underline"
                 >
-                  Send another message
+                  {t.success.again}
                 </button>
               </div>
             ) : (
@@ -124,7 +143,7 @@ export default function ContactPage() {
                       htmlFor="name"
                       className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1"
                     >
-                      Name
+                      {t.form.nameLabel}
                     </label>
                     <input
                       id="name"
@@ -132,7 +151,7 @@ export default function ContactPage() {
                       required
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="Your name"
+                      placeholder={t.form.namePlaceholder}
                       className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-400 dark:focus:ring-purple-600"
                     />
                   </div>
@@ -141,7 +160,7 @@ export default function ContactPage() {
                       htmlFor="email"
                       className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1"
                     >
-                      Email
+                      {t.form.emailLabel}
                     </label>
                     <input
                       id="email"
@@ -149,7 +168,7 @@ export default function ContactPage() {
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@example.com"
+                      placeholder={t.form.emailPlaceholder}
                       className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-400 dark:focus:ring-purple-600"
                     />
                   </div>
@@ -160,7 +179,7 @@ export default function ContactPage() {
                     htmlFor="message"
                     className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1"
                   >
-                    Message
+                    {t.form.messageLabel}
                   </label>
                   <textarea
                     id="message"
@@ -168,14 +187,14 @@ export default function ContactPage() {
                     rows={5}
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Your question, feedback, or bug report…"
+                    placeholder={t.form.messagePlaceholder}
                     className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-400 dark:focus:ring-purple-600 resize-none"
                   />
                 </div>
 
                 {status === "error" && (
                   <p className="text-sm text-red-600 dark:text-red-400">
-                    Something went wrong — please try again or reach out via GitHub.
+                    {t.error}
                   </p>
                 )}
 
@@ -184,7 +203,7 @@ export default function ContactPage() {
                   disabled={status === "submitting"}
                   className="w-full sm:w-auto px-6 py-2.5 rounded-lg bg-gradient-to-r from-purple-600 to-violet-500 hover:from-purple-700 hover:to-violet-600 text-white font-medium text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {status === "submitting" ? "Sending…" : "Send Message"}
+                  {status === "submitting" ? t.form.submitting : t.form.submit}
                 </button>
               </form>
             )}
